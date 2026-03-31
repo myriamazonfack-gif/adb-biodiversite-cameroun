@@ -311,10 +311,10 @@ with st.sidebar:
 # CHARGEMENT
 # ─────────────────────────────────────────────────────────────────────────────
 if fichier_charge is None:
-    # Mode démonstration avec données intégrées
+    # Mode démonstration avec données intégrées depuis le dépôt
     try:
         df_brut, macro_brut, feuilles_dispo = charger_donnees(
-            "/home/claude/ADB_Cameroun_Simulation.xlsx"
+            "ADB_Cameroun_Simulation.xlsx"
         )
         mode_demo = True
     except Exception:
