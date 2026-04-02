@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 import io
+import re
+import os
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIG PAGE
@@ -231,9 +233,10 @@ PALETTE_SECTEURS = {
 # ─────────────────────────────────────────────────────────────────────────────
 # CHARGEMENT DES DONNÉES
 # ─────────────────────────────────────────────────────────────────────────────
-@st.cache_data
-def charger_donnees(fichier):
-    xls = pd.ExcelFile(fichier)
+@st.cache_data(show_spinner="Chargement des données…")
+def charger_donnees(fichier_bytes):
+    """Accepts raw bytes so @st.cache_data can hash the content reliably."""
+    xls = pd.ExcelFile(io.BytesIO(fichier_bytes))
     feuilles = xls.sheet_names
 
     df = None
@@ -312,10 +315,11 @@ with st.sidebar:
 # ─────────────────────────────────────────────────────────────────────────────
 if fichier_charge is None:
     # Mode démonstration avec données intégrées
+    demo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ADB_Cameroun_Simulation.xlsx")
     try:
-        df_brut, macro_brut, feuilles_dispo = charger_donnees(
-            "/home/claude/ADB_Cameroun_Simulation.xlsx"
-        )
+        with open(demo_path, "rb") as f:
+            demo_bytes = f.read()
+        df_brut, macro_brut, feuilles_dispo = charger_donnees(demo_bytes)
         mode_demo = True
     except Exception:
         # Pas de fichier simulé, afficher page d'accueil
@@ -332,7 +336,8 @@ if fichier_charge is None:
         st.markdown('</div>', unsafe_allow_html=True)
         st.stop()
 else:
-    df_brut, macro_brut, feuilles_dispo = charger_donnees(fichier_charge)
+    fichier_bytes = fichier_charge.read()
+    df_brut, macro_brut, feuilles_dispo = charger_donnees(fichier_bytes)
     mode_demo = False
 
 if df_brut is None:
@@ -400,13 +405,22 @@ with st.sidebar:
 # ─────────────────────────────────────────────────────────────────────────────
 # FILTRAGE
 # ─────────────────────────────────────────────────────────────────────────────
+# Si l'utilisateur vide un filtre, on revient à toutes les valeurs disponibles
+if not annees_sel:
+    annees_sel = annees_dispo
+if not secteurs_sel:
+    secteurs_sel = secteurs_dispo
+if not cats_sel:
+    cats_sel = cats_dispo
+
 dff = df[
     df["Année"].isin(annees_sel) &
     df["Secteur"].isin(secteurs_sel) &
     df["Catégorie BIOFIN"].isin(cats_sel)
 ].copy()
-if inst_sel and "Institution" in dff.columns:
-    dff = dff[dff["Institution"].isin(inst_sel)]
+if inst_sel is not None and "Institution" in dff.columns:
+    if inst_sel:
+        dff = dff[dff["Institution"].isin(inst_sel)]
 
 if dff.empty:
     st.warning("⚠️ Aucune donnée pour les filtres sélectionnés.")
@@ -962,7 +976,7 @@ with tab4:
         margins_name="TOTAL"
     ) / diviseur
 
-    pivot2.index = [i.replace(r"^\d+\.\s*", "", 1) if i != "TOTAL" else i for i in pivot2.index]
+    pivot2.index = [re.sub(r"^\d+\.\s*", "", i) if i != "TOTAL" else i for i in pivot2.index]
     pivot2 = pivot2.round(1)
 
     # Tableau croisé colorié sans matplotlib
